@@ -354,11 +354,33 @@ thread_set_priority (int new_priority)
     thread_yield();
 }
 
+/* Returns the specified thread's priority. */
+static int
+get_priority (struct thread *t)
+{
+  if (list_empty(&t->locks_held))
+    return t->priority;
+
+  int max_priority = 0;
+  struct list_elem *e = list_head (&t->locks_held);
+  while ((e = list_next (e)) != list_end (&t->locks_held))
+  {
+    struct lock *lock = list_entry(e, struct lock, elem);
+    if (max_priority < lock->donated_priority)
+      max_priority = lock->donated_priority;
+  }
+
+  if (t->priority > max_priority)
+    max_priority = t->priority;
+
+  return max_priority;
+}
+
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return get_priority(thread_current());
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -478,6 +500,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  list_init(&t->locks_held);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -508,8 +531,26 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  // return list_entry(list_pop_front(&ready_list), struct thread, elem);
+
+  struct thread *max_priority_thread = list_entry(list_front(&ready_list), struct thread, elem);
+  int max_priority = get_priority(max_priority_thread);
+
+  struct list_elem *e = list_head (&ready_list);
+  while ((e = list_next (e)) != list_end (&ready_list))
+  {
+    struct thread *thread = list_entry(e, struct thread, elem);
+    int thread_priority = get_priority(thread);
+    if (thread_priority > max_priority)
+    {
+      max_priority = thread_priority;
+      max_priority_thread = thread;
+    }
+  }
+
+  list_remove(&max_priority_thread->elem);
+
+  return max_priority_thread;
 }
 
 /* Completes a thread switch by activating the new thread's page
