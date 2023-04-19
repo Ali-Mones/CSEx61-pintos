@@ -92,6 +92,7 @@ struct thread
     int64_t wakeup_time;                /* Wake up time of thread to be used in blocking timer_sleep() */
 
     struct list locks_held;             /* List of locks currently held by thread */
+    struct lock *blocking_lock;         /* Lock the thread is blocked on */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
