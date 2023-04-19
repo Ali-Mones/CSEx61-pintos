@@ -133,7 +133,10 @@ thread_tick (void)
     user_ticks++;
 #endif
   else
+  {
+    
     kernel_ticks++;
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -340,19 +343,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
-
-  int max_priority = 0;
-
-  struct list_elem *e = list_head (&ready_list);
-  while ((e = list_next (e)) != list_end (&ready_list))
-  {
-    struct thread *thread = list_entry(e, struct thread, elem);
-    if (max_priority < thread->priority)
-      max_priority = thread->priority;
-  }
-
-  if (new_priority < max_priority)
-    thread_yield();
+  thread_yield();
 }
 
 /* Returns the specified thread's priority. */
@@ -408,16 +399,16 @@ thread_get_load_avg (void)
   return load_avg * 100;
 }
 
-/*update load average*/
-void update_loadAvg(){
-
-  load_avg = (59/60)*load_avg + (1/60)*list_size(&ready_list);
+/*Update load average*/
+void update_load_avg()
+{
+  load_avg = (59 / 60) * load_avg + (1 / 60) * list_size(&ready_list);
 }
 
 /*update recent cpu for a given thread*/
-void update_recent_cpu(struct thread*t,void *aux UNUSED)
+void update_recent_cpu(struct thread *t, void *aux UNUSED)
 {
-  t->recent_cpu = ((2*load_avg)/(2*load_avg+1))*t->recent_cpu + t->nice;
+  t->recent_cpu = ((2 * load_avg) / (2 * load_avg + 1)) * t->recent_cpu + t->nice;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -512,14 +503,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  if(thread_mlfqs){
+
+  if(thread_mlfqs)
+  {
     t->nice = thread_current()->nice;
     t->recent_cpu = thread_current()->recent_cpu;
     t->priority = PRI_MAX - (thread_current()->recent_cpu / 4) - (t->nice * 2);
   }
-  else{
+  else
     t->priority = priority;
-  }
+
   list_init(&t->locks_held);
   t->blocking_lock = NULL;
   t->magic = THREAD_MAGIC;
@@ -552,7 +545,6 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  // return list_entry(list_pop_front(&ready_list), struct thread, elem);
 
   struct thread *max_priority_thread = list_entry(list_front(&ready_list), struct thread, elem);
   int max_priority = get_priority(max_priority_thread);
