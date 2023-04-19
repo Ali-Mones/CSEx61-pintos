@@ -202,8 +202,15 @@ lock_acquire (struct lock *lock)
     thread_current()->blocking_lock = lock;
     if (lock->donated_priority < thread_current()->priority)
       lock->donated_priority = thread_current()->priority;
-    if (lock->holder->blocking_lock != NULL && lock->holder->blocking_lock->donated_priority < thread_current()->priority)
-      lock->holder->blocking_lock->donated_priority = thread_current()->priority;
+
+    struct lock *l = lock->holder->blocking_lock;
+    while (l != NULL)
+    {
+      if (l->donated_priority < thread_current()->priority)
+        l->donated_priority = thread_current()->priority;
+        
+      l = l->holder->blocking_lock;
+    }
   }
 
   sema_down (&lock->semaphore);
