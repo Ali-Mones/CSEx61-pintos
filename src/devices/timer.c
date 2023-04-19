@@ -187,6 +187,20 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+  if(thread_mlfqs){
+    thread_current()->recent_cpu++;
+
+    if(ticks %4 == 0){
+      thread_current()->priority = PRI_MAX - (thread_current()->recent_cpu / 4) - (thread_current()->nice * 2);
+    }
+
+    if(ticks %100 == 0){
+      update_loadAvg();
+      thread_foreach(update_recent_cpu,NULL);
+    }
+  }
+
   thread_tick ();
 
   struct thread* thread;
