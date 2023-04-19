@@ -49,6 +49,7 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
+static long long load_avg;
 
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
@@ -385,33 +386,45 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  thread_current()->nice = nice;
+  thread_current()->priority = PRI_MAX - (thread_current()->recent_cpu / 4) - (nice * 2);
+
+  thread_yield();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
+{ 
+  return load_avg * 100;
+}
+
+/*update load average*/
+void update_loadAvg(){
+
+  load_avg = (59/60)*load_avg + (1/60)*list_size(&ready_list);
+}
+
+/*update recent cpu for a given thread*/
+void update_recent_cpu(struct thread*t,void *aux UNUSED)
 {
-  /* Not yet implemented. */
-  return 0;
+  t->recent_cpu = ((2*load_avg)/(2*load_avg+1))*t->recent_cpu + t->nice;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->recent_cpu * 100;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -499,7 +512,14 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  if(thread_mlfqs){
+    t->nice = thread_current()->nice;
+    t->recent_cpu = thread_current()->recent_cpu;
+    t->priority = PRI_MAX - (thread_current()->recent_cpu / 4) - (t->nice * 2);
+  }
+  else{
+    t->priority = priority;
+  }
   list_init(&t->locks_held);
   t->blocking_lock = NULL;
   t->magic = THREAD_MAGIC;
