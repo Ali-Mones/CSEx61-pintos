@@ -113,7 +113,7 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
+  while (!list_empty (&sema->waiters)) 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
   sema->value++;
@@ -197,11 +197,18 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if (lock->holder != NULL && thread_current()->priority > lock->donated_priority)
-    lock->donated_priority = thread_current()->priority;
+  if (lock->holder != NULL)
+  {
+    thread_current()->blocking_lock = lock;
+    if (lock->donated_priority < thread_current()->priority)
+      lock->donated_priority = thread_current()->priority;
+    if (lock->holder->blocking_lock != NULL && lock->holder->blocking_lock->donated_priority < thread_current()->priority)
+      lock->holder->blocking_lock->donated_priority = thread_current()->priority;
+  }
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  thread_current()->blocking_lock = NULL;
   list_push_back(&thread_current()->locks_held, &lock->elem);
   thread_yield();
 }
