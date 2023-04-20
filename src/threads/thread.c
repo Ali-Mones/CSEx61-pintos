@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "real.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -49,7 +50,7 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
-static long long load_avg;
+static int load_avg;
 
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
@@ -136,6 +137,25 @@ thread_tick (void)
   {
     
     kernel_ticks++;
+  }
+
+  if(thread_mlfqs)
+  {
+    thread_current()->recent_cpu++;
+
+    if(thread_ticks % 4 == 0){
+      real a,b,c;
+      a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu),4);
+      b = subtract_real_from_real(to_fixed_point(PRI_MAX),a);
+      c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
+      thread_current()->priority =  to_integer_chopping(c);
+    }
+
+    if(thread_ticks % 100 == 0)
+    {
+      update_load_avg();
+      thread_foreach(update_recent_cpu, NULL);
+    }
   }
 
   /* Enforce preemption. */
@@ -376,11 +396,16 @@ thread_get_priority (void)
 }
 
 /* Sets the current thread's nice value to NICE. */
+
 void
 thread_set_nice (int nice) 
 {
   thread_current()->nice = nice;
-  thread_current()->priority = PRI_MAX - (thread_current()->recent_cpu / 4) - (nice * 2);
+  real a,b,c;
+  a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu),4);
+  b = subtract_real_from_real(to_fixed_point(PRI_MAX),a);
+  c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
+  thread_current()->priority =  to_integer_chopping(c);
 
   thread_yield();
 }
@@ -402,13 +427,23 @@ thread_get_load_avg (void)
 /*Update load average*/
 void update_load_avg()
 {
-  load_avg = (59 / 60) * load_avg + (1 / 60) * list_size(&ready_list);
+  real a,b,c,d;
+  a = divide_real_by_integer(to_fixed_point(59),60); 
+  b = multiply_real_by_integer(a,load_avg);
+  c = divide_real_by_integer(to_fixed_point(1),60);
+  d = multiply_real_by_integer(c,list_size(&ready_list));
+  load_avg = to_integer_to_nearest(add_real_to_real(c,d));
 }
 
 /*update recent cpu for a given thread*/
 void update_recent_cpu(struct thread *t, void *aux UNUSED)
 {
-  t->recent_cpu = ((2 * load_avg) / (2 * load_avg + 1)) * t->recent_cpu + t->nice;
+  real a,b,c,d;
+  a = divide_real_by_integer(to_fixed_point(2 * load_avg),2 * load_avg + 1);
+  b = multiply_real_by_integer(a,t->recent_cpu);
+  c = add_real_to_integer(b,t->nice);
+
+  t->recent_cpu = to_integer_to_nearest(c);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */

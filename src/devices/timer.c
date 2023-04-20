@@ -188,22 +188,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
 
-  if(thread_mlfqs)
-  {
-    thread_current()->recent_cpu++;
-
-    if(ticks % 4 == 0)
-      thread_current()->priority = PRI_MAX - (thread_current()->recent_cpu / 4) - (thread_current()->nice * 2);
-
-    if(ticks % 100 == 0)
-    {
-      update_load_avg();
-      thread_foreach(update_recent_cpu, NULL);
-    }
-  }
-
-  thread_tick ();
-
   struct thread* thread;
   while (!list_empty(&sleeping))
   {
@@ -215,6 +199,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
     list_pop_front(&sleeping);
     thread_unblock(thread);
   }
+
+  thread_tick ();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -20,22 +20,22 @@
     - divide x by n:	x / n
     ------------------------------- */
 
-struct real
+real
 to_fixed_point(int n)
 {
-    struct real r;
+    real r;
     r.value = n * (1 << 14);
     return r;
 }
 
 int
-to_integer_chopping(struct real x)
+to_integer_chopping(real x)
 {
     return x.value / (1 << 14);
 }
 
 int
-to_integer_to_nearest(struct real x)
+to_integer_to_nearest(real x)
 {
     if (x.value > 0)
         return (x.value + (1 << 14) / 2) / (1 << 14);
@@ -43,66 +43,66 @@ to_integer_to_nearest(struct real x)
         return (x.value - (1 << 14) / 2) / (1 << 14);
 }
 
-struct real
-add_real_to_real(struct real x, struct real y)
+real
+add_real_to_real(real x, real y)
 {
-    struct real r;
+    real r;
     r.value = x.value + y.value;
     return r;
 }
 
-struct real
-subtract_real_from_real(struct real x, struct real y)
+real
+subtract_real_from_real(real x, real y)
 {
-    struct real r;
+    real r;
     r.value = x.value - y.value;
     return r;
 }
 
-struct real
-add_real_to_integer(struct real x, int n)
+real
+add_real_to_integer(real x, int n)
 {
-    struct real r;
+    real r;
     r.value = x.value + n * (1 << 14);
     return r;
 }
 
-struct real
-subtract_integer_from_real(struct real x, int n)
+real
+subtract_integer_from_real(real x, int n)
 {
-    struct real r;
+    real r;
     r.value = x.value - n * (1 << 14);
     return r;
 }
 
-struct real
-multiply_real_by_real(struct real x, struct real y)
+real
+multiply_real_by_real(real x, real y)
 {
-    struct real r;
+    real r;
     r.value = ((int64_t)x.value) * y.value / (1 << 14);
     return r;
 }
 
-struct real
-multiply_real_by_integer(struct real x, int n)
+real
+multiply_real_by_integer(real x, int n)
 {
-    struct real r;
+    real r;
     r.value = x.value * n;
     return r;
 }
 
-struct real
-divide_real_by_real(struct real x, struct real y)
+real
+divide_real_by_real(real x, real y)
 {
-    struct real r;
+    real r;
     r.value = ((int64_t) x.value) * (1 << 14) / y.value;
     return r;
 }
 
-struct real
-divide_real_by_integer(struct real x, int n)
+real
+divide_real_by_integer(real x, int n)
 {
-    struct real r;
+    real r;
     r.value = x.value / n;
     return r;
 }
