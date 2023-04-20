@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "threads/real.h"
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -198,6 +199,25 @@ timer_interrupt (struct intr_frame *args UNUSED)
 
     list_pop_front(&sleeping);
     thread_unblock(thread);
+  }
+
+  if(thread_mlfqs)
+  {
+    thread_current()->recent_cpu++;
+
+    if(ticks % 4 == 0){
+      real a,b,c;
+      a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu),4);
+      b = subtract_real_from_real(to_fixed_point(PRI_MAX),a);
+      c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
+      thread_current()->priority =  to_integer_chopping(c);
+    }
+
+    if(ticks % 100 == 0)
+    {
+      update_load_avg();
+      thread_foreach(update_recent_cpu, NULL);
+    }
   }
 
   thread_tick ();

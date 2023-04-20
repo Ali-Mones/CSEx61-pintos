@@ -139,25 +139,6 @@ thread_tick (void)
     kernel_ticks++;
   }
 
-  if(thread_mlfqs)
-  {
-    thread_current()->recent_cpu++;
-
-    if(thread_ticks % 4 == 0){
-      real a,b,c;
-      a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu),4);
-      b = subtract_real_from_real(to_fixed_point(PRI_MAX),a);
-      c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
-      thread_current()->priority =  to_integer_chopping(c);
-    }
-
-    if(thread_ticks % 100 == 0)
-    {
-      update_load_avg();
-      thread_foreach(update_recent_cpu, NULL);
-    }
-  }
-
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -543,7 +524,11 @@ init_thread (struct thread *t, const char *name, int priority)
   {
     t->nice = thread_current()->nice;
     t->recent_cpu = thread_current()->recent_cpu;
-    t->priority = PRI_MAX - (thread_current()->recent_cpu / 4) - (t->nice * 2);
+    real a,b,c;
+    a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu),4);
+    b = subtract_real_from_real(to_fixed_point(PRI_MAX),a);
+    c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
+    t->priority =  to_integer_chopping(c);
   }
   else
     t->priority = priority;
