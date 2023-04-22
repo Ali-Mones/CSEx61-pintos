@@ -570,6 +570,17 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
+/* returns true if priority of a is more than that of b */
+static bool
+higher_priority (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return get_priority(a) < get_priority(b);
+}
+
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
    empty.  (If the running thread can continue running, then it
@@ -581,20 +592,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
 
-  struct thread *max_priority_thread = list_entry(list_front(&ready_list), struct thread, elem);
-  int max_priority = get_priority(max_priority_thread);
-
-  struct list_elem *e = list_head (&ready_list);
-  while ((e = list_next (e)) != list_end (&ready_list))
-  {
-    struct thread *thread = list_entry(e, struct thread, elem);
-    int thread_priority = get_priority(thread);
-    if (thread_priority > max_priority)
-    {
-      max_priority = thread_priority;
-      max_priority_thread = thread;
-    }
-  }
+  struct thread *max_priority_thread = list_entry(list_max(&ready_list, higher_priority, NULL), struct thread, elem);
 
   list_remove(&max_priority_thread->elem);
 

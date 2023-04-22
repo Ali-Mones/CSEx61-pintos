@@ -187,7 +187,7 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-
+  ticks++;
   if(thread_mlfqs)
   {
     thread_current()->recent_cpu++;
@@ -214,6 +214,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
     }
   }
   
+  thread_tick ();
 
   struct thread* thread;
   while (!list_empty(&sleeping))
@@ -227,8 +228,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
     thread_unblock(thread);
   }
 
-  ticks++;
-  thread_tick ();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
