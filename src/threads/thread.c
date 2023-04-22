@@ -50,7 +50,7 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
-static int load_avg;
+static real load_avg = {0};     /* Average number of threads running in the past minute */
 
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
@@ -388,6 +388,13 @@ thread_set_nice (int nice)
   c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
   thread_current()->priority =  to_integer_chopping(c);
 
+  if (to_integer_chopping(c) < PRI_MIN)
+    thread_current()->priority = PRI_MIN;
+  else if (to_integer_chopping(c) > PRI_MAX)
+    thread_current()->priority = PRI_MAX;
+  else
+    thread_current()->priority = to_integer_chopping(c);
+
   thread_yield();
 }
 
@@ -401,28 +408,28 @@ thread_get_nice (void)
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
-{ 
-  return load_avg * 100;
+{
+  return to_integer_to_nearest(multiply_real_by_integer(load_avg, 100));
 }
 
 /*Update load average*/
 void update_load_avg()
 {
   real a,b,c,d;
-  a = divide_real_by_integer(to_fixed_point(59),60); 
-  b = multiply_real_by_integer(a,load_avg);
-  c = divide_real_by_integer(to_fixed_point(1),60);
-  d = multiply_real_by_integer(c,list_size(&ready_list));
-  load_avg = to_integer_to_nearest(add_real_to_real(c,d));
+  a = divide_real_by_integer(to_fixed_point(59), 60);
+  b = multiply_real_by_real(a, load_avg);
+  c = divide_real_by_integer(to_fixed_point(1), 60);
+  d = multiply_real_by_integer(c, list_size(&ready_list) + (thread_current() != idle_thread));
+  load_avg = add_real_to_real(b, d);
 }
 
 /*update recent cpu for a given thread*/
 void update_recent_cpu(struct thread *t, void *aux UNUSED)
 {
-  real a,b,c,d;
-  a = divide_real_by_integer(to_fixed_point(2 * load_avg),2 * load_avg + 1);
-  b = multiply_real_by_integer(a,t->recent_cpu);
-  c = add_real_to_integer(b,t->nice);
+  real a, b, c;
+  a = divide_real_by_real(multiply_real_by_integer(load_avg, 2), add_real_to_integer(multiply_real_by_integer(load_avg, 2), 1));
+  b = multiply_real_by_integer(a, t->recent_cpu);
+  c = add_real_to_integer(b, t->nice);
 
   t->recent_cpu = to_integer_to_nearest(c);
 }
@@ -520,15 +527,23 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
 
-  if(thread_mlfqs)
+  if(thread_mlfqs && list_size(&all_list) != 0)
   {
     t->nice = thread_current()->nice;
     t->recent_cpu = thread_current()->recent_cpu;
-    real a,b,c;
-    a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu),4);
-    b = subtract_real_from_real(to_fixed_point(PRI_MAX),a);
-    c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
-    t->priority =  to_integer_chopping(c);
+
+    // calculating priority
+    real a, b, c;
+    a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu), 4);
+    b = subtract_real_from_real(to_fixed_point(PRI_MAX), a);
+    c = subtract_integer_from_real(b, thread_current()->nice  * 2);
+
+    if (to_integer_chopping(c) < PRI_MIN)
+      t->priority = PRI_MIN;
+    else if (to_integer_chopping(c) > PRI_MAX)
+      t->priority = PRI_MAX;
+    else
+      t->priority = to_integer_chopping(c);
   }
   else
     t->priority = priority;
