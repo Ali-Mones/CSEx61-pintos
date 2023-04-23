@@ -188,31 +188,6 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  if(thread_mlfqs)
-  {
-    thread_current()->recent_cpu++;
-
-    if(ticks % TIMER_FREQ  == 0)
-    {
-      update_load_avg();
-      thread_foreach(update_recent_cpu, NULL);
-    }
-
-    if (ticks % 4 == 0)
-    {
-      real a,b,c;
-      a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu), 4); // a = recent cpu / 4
-      b = subtract_real_from_real(to_fixed_point(PRI_MAX), a);                     // b = PRI_MAX - recent cpu / 4
-      c = subtract_integer_from_real(b, thread_current()->nice * 2);               // c = PRI_MAX - recent cpu / 4 - nice * 2
-
-      if (to_integer_chopping(c) < PRI_MIN)
-        thread_current()->priority = PRI_MIN;
-      else if (to_integer_chopping(c) > PRI_MAX)  
-        thread_current()->priority = PRI_MAX;
-      else
-      thread_current()->priority = to_integer_chopping(c);
-    }
-  }
   
   thread_tick ();
 

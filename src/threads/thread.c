@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #include "real.h"
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -30,7 +31,7 @@ static struct list ready_list;
 static struct list all_list;
 
 /* Idle thread. */
-static struct thread *idle_thread;
+struct thread *idle_thread;
 
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
@@ -135,8 +136,34 @@ thread_tick (void)
 #endif
   else
   {
-    
     kernel_ticks++;
+  }
+
+  if(thread_mlfqs)
+  {
+    if (t != idle_thread)
+      t->recent_cpu = add_real_to_integer(t->recent_cpu, 1);
+
+    if((idle_ticks + kernel_ticks) % TIMER_FREQ  == 0)
+    {
+      update_load_avg();
+      thread_foreach(update_recent_cpu, NULL);
+    }
+
+    if ((idle_ticks + kernel_ticks) % 4 == 0)
+    {
+      real a,b,c;
+      a = divide_real_by_integer(t->recent_cpu, 4); // a = recent cpu / 4
+      b = subtract_real_from_real(to_fixed_point(PRI_MAX), a);                     // b = PRI_MAX - recent cpu / 4
+      c = subtract_integer_from_real(b, t->nice * 2);               // c = PRI_MAX - recent cpu / 4 - nice * 2
+
+      if (to_integer_chopping(c) < PRI_MIN)
+        t->priority = PRI_MIN;
+      else if (to_integer_chopping(c) > PRI_MAX)  
+        t->priority = PRI_MAX;
+      else
+        t->priority = to_integer_chopping(c);
+    }
   }
 
   /* Enforce preemption. */
@@ -347,21 +374,25 @@ thread_set_priority (int new_priority)
   thread_yield();
 }
 
+/* returns true if priority of a is more than that of b */
+static bool
+higher_donated_priority (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct lock *a = list_entry (a_, struct lock, elem);
+  const struct lock *b = list_entry (b_, struct lock, elem);
+  
+  return a->donated_priority < b->donated_priority;
+}
+
 /* Returns the specified thread's priority. */
-static int
+int
 get_priority (struct thread *t)
 {
   if (list_empty(&t->locks_held))
     return t->priority;
 
-  int max_priority = 0;
-  struct list_elem *e = list_head (&t->locks_held);
-  while ((e = list_next (e)) != list_end (&t->locks_held))
-  {
-    struct lock *lock = list_entry(e, struct lock, elem);
-    if (max_priority < lock->donated_priority)
-      max_priority = lock->donated_priority;
-  }
+  int max_priority = list_entry(list_max(&t->locks_held, higher_donated_priority, NULL), struct lock, elem)->donated_priority;
 
   if (t->priority > max_priority)
     max_priority = t->priority;
@@ -383,10 +414,9 @@ thread_set_nice (int nice)
 {
   thread_current()->nice = nice;
   real a,b,c;
-  a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu),4);
-  b = subtract_real_from_real(to_fixed_point(PRI_MAX),a);
-  c = subtract_integer_from_real(b,(thread_current()->nice  * 2));
-  thread_current()->priority =  to_integer_chopping(c);
+  a = divide_real_by_integer(thread_current()->recent_cpu, 4);
+  b = subtract_real_from_real(to_fixed_point(PRI_MAX), a);
+  c = subtract_integer_from_real(b, thread_current()->nice * 2);
 
   if (to_integer_chopping(c) < PRI_MIN)
     thread_current()->priority = PRI_MIN;
@@ -428,17 +458,17 @@ void update_recent_cpu(struct thread *t, void *aux UNUSED)
 {
   real a, b, c;
   a = divide_real_by_real(multiply_real_by_integer(load_avg, 2), add_real_to_integer(multiply_real_by_integer(load_avg, 2), 1));
-  b = multiply_real_by_integer(a, t->recent_cpu);
-  c = add_real_to_integer(b, t->nice);
+  b = multiply_real_by_real(a, t->recent_cpu);
+  t->recent_cpu = add_real_to_integer(b, t->nice);
 
-  t->recent_cpu = to_integer_to_nearest(c);
+  // t->recent_cpu = to_integer_to_nearest(c);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  return thread_current()->recent_cpu * 100;
+  return to_integer_to_nearest(multiply_real_by_integer(thread_current()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -534,7 +564,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
     // calculating priority
     real a, b, c;
-    a = divide_real_by_integer(to_fixed_point(thread_current()->recent_cpu), 4);
+    a = divide_real_by_integer(thread_current()->recent_cpu, 4);
     b = subtract_real_from_real(to_fixed_point(PRI_MAX), a);
     c = subtract_integer_from_real(b, thread_current()->nice  * 2);
 
@@ -571,7 +601,7 @@ alloc_frame (struct thread *t, size_t size)
 }
 
 /* returns true if priority of a is more than that of b */
-static bool
+bool
 higher_priority (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED) 
 {

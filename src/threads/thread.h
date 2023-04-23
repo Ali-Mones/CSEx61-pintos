@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/real.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -91,7 +92,7 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t wakeup_time;                /* Wake up time of thread to be used in blocking timer_sleep() */
     int nice;                           /* Nice value to be used in advanced scheduling */
-    int recent_cpu;                     /* Recent cpu usage value to be used in advanced scheduling */
+    real recent_cpu;                    /* Recent cpu usage value to be used in advanced scheduling */
 
     struct list locks_held;             /* List of locks currently held by thread */
     struct lock *blocking_lock;         /* Lock the thread is blocked on */
@@ -136,14 +137,17 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
+int get_priority (struct thread *t);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
-void update_recent_cpu(struct thread *t, void *aux);
-void update_load_avg(void);
+void update_recent_cpu (struct thread *t, void *aux UNUSED);
+void update_load_avg (void);
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+bool higher_priority (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED); 
 
 #endif /* threads/thread.h */
