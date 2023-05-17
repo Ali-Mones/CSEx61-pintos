@@ -61,6 +61,8 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  // TODO: push arguments onto stack
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -312,6 +314,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
+  file_deny_write(file);
   file_close (file);
   return success;
 }
