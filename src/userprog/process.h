@@ -7,6 +7,14 @@ struct open_file
 {
     struct file* ptr;
     int fd;
+    struct list_elem elem;
+};
+
+struct child_process 
+{
+    int pid;
+    struct thread* t;
+    struct list_elem elem;
 };
 
 tid_t process_execute (const char *file_name);

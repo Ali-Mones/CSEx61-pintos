@@ -40,6 +40,7 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  sema_down(&thread_current()->child_parent_sync);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -61,12 +62,27 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  // TODO: push arguments onto stack
+  thread_current()->parent_thread->child_status = success;
+
+  if (thread_current()->parent_thread != NULL)
+  {
+    struct child_process child;
+    child.pid = thread_current()->tid;
+    child.t = thread_current();
+    list_push_back(&thread_current()->parent_thread->child_process, &child.elem);
+
+    sema_up(&thread_current()->parent_thread->child_parent_sync);
+    sema_down(&thread_current()->child_parent_sync);
+  }
+
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
+  {
+    sema_up(&thread_current()->parent_thread->child_parent_sync);
     thread_exit ();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -90,7 +106,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  while (true);
 }
 
 /* Free the current process's resources. */
@@ -197,7 +213,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, int argc, char* argv[]);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -217,6 +233,17 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  char* args[16];
+  const char* delim = " ";
+  char* token = strtok(file_name, delim);
+  int i = 0;
+  while (token != NULL)
+  {
+    args[i] = token;
+    token = strtok(NULL, delim);
+    i++;
+  }
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -224,10 +251,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (args[0]);
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", args[0]);
       goto done; 
     }
 
@@ -304,7 +331,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, i, args))
     goto done;
 
   /* Start address. */
@@ -430,7 +457,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp,  int argc, char* argv[])
 {
   uint8_t *kpage;
   bool success = false;
@@ -440,7 +467,39 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
+      {
+        int i = argc - 1;
         *esp = PHYS_BASE;
+        char* addresses[argc];
+        while (i >= 0)
+        {
+          int size = strlen(argv[i]);
+          *esp -= size;
+          addresses[i] = *esp;
+          memcpy(*esp, argv[i], size);
+          i--;
+        }
+
+
+        while ((uint32_t)*esp % 4 != 0)
+          *esp--;
+
+        *esp -= sizeof NULL;
+        memcpy(*esp, NULL, sizeof NULL);
+
+        i = argc - 1;
+        while (i >= 0)
+        {
+          *esp -= sizeof(char*);
+          memcpy(*esp, addresses[i], sizeof(addresses[i]));
+          i--;
+        }
+
+        memcpy(*esp, &argc, sizeof(int));
+
+        *esp -= sizeof NULL;
+        memcpy(*esp, NULL, sizeof NULL);
+      }
       else
         palloc_free_page (kpage);
     }

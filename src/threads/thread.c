@@ -230,6 +230,8 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  t->parent_thread = thread_current();
+
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -581,6 +583,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->locks_held);
   t->blocking_lock = NULL;
   t->magic = THREAD_MAGIC;
+  t->child_parent_sync.value = 0;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

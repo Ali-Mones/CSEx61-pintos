@@ -9,6 +9,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/real.h"
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -106,7 +107,17 @@ struct thread
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
+    uint32_t *pagedir;                                                     /* Page directory. */
+    struct list open_files;                                                /* fd_to_ptr() from current_thread() */
+    struct list child_process;                                             /* used for child validation and exit */
+    struct thread* parent_thread;                                          /* now child thread can pass values to parent */
+    bool child_creation_success;                                           /* set in parent by child during creation */
+    int child_status;                                                      /* set in parent by child during wait() */
+    tid_t waiting_on;                                                      /* to check that my parent is waiting on me as child is calling exit */
+    struct file* executable_file;                                          /* set in load(), call deny_file_write() and close it in exit() */
+    struct semaphore wait_child;                                           /* for synchronisation on write() */
+    struct semaphore child_parent_sync;                                    /* for parent child synchronisation during creation */
+    int fd_last;                                                           /* ++fd_last is the new opened file fd */
 #endif
 
     /* Owned by thread.c. */
