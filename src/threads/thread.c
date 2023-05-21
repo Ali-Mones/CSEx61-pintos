@@ -581,9 +581,12 @@ init_thread (struct thread *t, const char *name, int priority)
     t->priority = priority;
 
   list_init(&t->locks_held);
+  list_init(&t->child_processes);
+  list_init(&t->open_files);
   t->blocking_lock = NULL;
   t->magic = THREAD_MAGIC;
-  t->child_parent_sync.value = 0;
+  sema_init(&t->child_parent_sync, 0);
+  sema_init(&t->wait_child, 0);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

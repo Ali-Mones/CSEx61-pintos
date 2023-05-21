@@ -109,7 +109,7 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                                                     /* Page directory. */
     struct list open_files;                                                /* fd_to_ptr() from current_thread() */
-    struct list child_process;                                             /* used for child validation and exit */
+    struct list child_processes;                                           /* used for child validation and exit */
     struct thread* parent_thread;                                          /* now child thread can pass values to parent */
     bool child_creation_success;                                           /* set in parent by child during creation */
     int child_status;                                                      /* set in parent by child during wait() */

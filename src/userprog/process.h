@@ -12,7 +12,7 @@ struct open_file
 
 struct child_process 
 {
-    int pid;
+    tid_t pid;
     struct thread* t;
     struct list_elem elem;
 };
