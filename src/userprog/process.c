@@ -142,7 +142,7 @@ process_wait (tid_t child_tid)
 
   thread_yield();
 
-  sema_down(&parent->child_parent_sync);
+  sema_down(&parent->wait_child);
 }
 
 /* Free the current process's resources. */
