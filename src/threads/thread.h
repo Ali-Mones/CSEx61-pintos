@@ -5,6 +5,8 @@
 #define USERPROG
 #endif
 
+#define ERR PANIC("%d", 1);
+
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>

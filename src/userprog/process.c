@@ -43,6 +43,7 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   sema_down(&thread_current()->child_parent_sync);
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -67,7 +68,6 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-
   // child->parent_thread->child_status = success;
 
   if (success && child->parent_thread != NULL)
@@ -87,7 +87,7 @@ start_process (void *file_name_)
   palloc_free_page (file_name);
   if (!success) 
   {
-    sema_up(&child->parent_thread->child_parent_sync);
+    sema_up(&child->parent_thread->wait_child); // or other sync
     thread_exit ();
   }
 
@@ -138,11 +138,9 @@ process_wait (tid_t child_tid)
 
   sema_up(&parent->child_parent_sync);
 
-  print_human_readable_size(32);
+  // thread_yield();
 
-  thread_yield();
-
-  sema_down(&parent->child_parent_sync);
+  sema_down(&parent->wait_child);
 }
 
 /* Free the current process's resources. */

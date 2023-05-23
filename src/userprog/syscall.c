@@ -9,6 +9,9 @@
 #include "filesys/file.h"
 #include "lib/kernel/stdio.h"
 #include "lib/stdio.h"
+#include "threads/vaddr.h"
+#include "pagedir.h"
+#include "lib/user/syscall.h"
 
 static void syscall_handler (struct intr_frame *);
 static struct lock file_lock;
@@ -21,33 +24,29 @@ get_int(void *esp)
   return x;
 }
 
-// static char*
-// get_char_ptr(void **esp)
-// {
-//   int size = strlen((char*)*esp);
-//   char* string = malloc(size);
-//   memcpy(string, *esp, size);
-//   *esp += size;
-//   return string;
-// }
-
 static void*
 get_ptr(void *esp)
 {
   int ptr;
   memcpy(&ptr, esp, 4);
-  return ptr;
+  return (void *)ptr;
 }
 
 static void
 validate_ptr(const void *ptr)
 {
+  if (ptr == NULL || ptr >= PHYS_BASE || pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
+  {
+    // exit(-1);
+    ERR
+  }
 }
 
 static void
 exec_wrapper(struct intr_frame *f)
 {
   char *file_name = get_ptr(f->esp);
+  validate_ptr(file_name);
   f->eax = (uint32_t)process_execute(file_name);
 }
 
@@ -55,11 +54,11 @@ static void
 wait_wrapper(struct intr_frame *f)
 {
   int tid = get_int(f->esp);
-  process_wait(tid);
+  f->eax = process_wait(tid);
 }
 
 static uint32_t
-write_wrapper(struct intr_frame *f)
+write_wrapper(struct intr_frame *f UNUSED)
 {
   int fd = get_int(f->esp + 4);
   char* buffer = get_ptr(f->esp + 8);
@@ -67,14 +66,12 @@ write_wrapper(struct intr_frame *f)
   validate_ptr(buffer);
   if (fd == 1)
   {
-
-    putchar('x');
     lock_acquire(&file_lock);
     putbuf(buffer, size);
     lock_release(&file_lock);
   }
 
-  return strlen(buffer);
+  return size;
 }
 
 static void
@@ -148,7 +145,7 @@ syscall_handler (struct intr_frame *f)
     default:
       break;
   }
-  thread_exit ();
+  thread_exit();
 }
 
 
