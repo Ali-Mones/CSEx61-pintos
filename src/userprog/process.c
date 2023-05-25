@@ -72,10 +72,10 @@ start_process (void *file_name_)
 
   if (success && child->parent_thread != NULL)
   {
-    struct child_process process;
-    process.pid = child->tid;
-    process.t = child;
-    list_push_back(&child->parent_thread->child_processes, &process.elem);
+    struct child_process *process = malloc(sizeof(struct child_process));
+    process->pid = child->tid;
+    process->t = child;
+    list_push_back(&child->parent_thread->child_processes, &process->elem);
 
     sema_up(&child->parent_thread->child_parent_sync);
     thread_yield();
