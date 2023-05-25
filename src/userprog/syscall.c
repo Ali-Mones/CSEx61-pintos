@@ -37,9 +37,9 @@ get_ptr(void *esp)
 static void
 validate_ptr(const void *ptr)
 {
-  if (ptr == NULL || ptr >= PHYS_BASE || pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
+  if (ptr == NULL || ptr < PHYS_BASE - PGSIZE || ptr >= PHYS_BASE || pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
   {
-    // exit(-1);
+    thread_exit();
   }
 }
 
@@ -54,6 +54,8 @@ exit_wrapper(struct intr_frame *f)
 {
   int status = get_int(f->esp + 4);
 
+  f->eax = status;
+
   struct thread *cur = thread_current ();
   
   struct list_elem *e = list_head (&cur->open_files);
@@ -61,13 +63,14 @@ exit_wrapper(struct intr_frame *f)
   {
     struct open_file *file = list_entry(e, struct open_file, elem);
     file_close(file->ptr);
+    free(file->ptr);
   }
 
-  file_allow_write(thread_current()->executable_file);
+  file_close(thread_current()->executable_file);
 
   e = list_head(&thread_current()->parent_thread->child_processes);
   struct child_process *child;
-  while ((e = list_next (e)) != list_end (&cur->open_files))
+  while ((e = list_next (e)) != list_end (&cur->child_processes))
   {
     child = list_entry(e, struct child_process, elem);
     if(child->pid == thread_current()->tid)
@@ -94,9 +97,14 @@ exit_wrapper(struct intr_frame *f)
     list_remove(e);
   }
 
-  e = list_head (&cur->child_processes);
-  while ((e = list_next (e)) != list_end (&cur->child_processes))
-    sema_up(&cur->child_parent_sync);
+  while (!list_empty(&cur->child_processes))
+  {
+    struct list_elem *e = list_pop_front(&cur->child_processes);
+    struct child_process* child = list_entry(e, struct child_process, elem);
+    sema_up(&child->t->child_parent_sync);
+    child->t->parent_thread = NULL;
+    list_remove(e);
+  }
 
   thread_exit();
 }
