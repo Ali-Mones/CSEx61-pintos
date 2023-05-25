@@ -43,6 +43,7 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   sema_down(&thread_current()->child_parent_sync);
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -67,27 +68,27 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-
-  // child->parent_thread->child_status = success;
-
   if (success && child->parent_thread != NULL)
   {
-    struct child_process process;
-    process.pid = child->tid;
-    process.t = child;
-    list_push_back(&child->parent_thread->child_processes, &process.elem);
+    struct child_process *process = malloc(sizeof(struct child_process));
+    process->pid = child->tid;
+    process->t = child;
+    list_push_back(&child->parent_thread->child_processes, &process->elem);
+
+    child->parent_thread->child_status = 0;
 
     sema_up(&child->parent_thread->child_parent_sync);
-    thread_yield();
-    sema_down(&child->parent_thread->child_parent_sync);
+    // thread_yield();
+    sema_down(&child->child_parent_sync);
   }
 
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
   {
     sema_up(&child->parent_thread->child_parent_sync);
+    child->parent_thread->child_status = -1;
     thread_exit ();
   }
 
@@ -136,13 +137,10 @@ process_wait (tid_t child_tid)
 
   list_remove(e);
 
-  sema_up(&parent->child_parent_sync);
-
-  print_human_readable_size(32);
-
-  thread_yield();
-
+  sema_up(&child->t->child_parent_sync);
   sema_down(&parent->wait_child);
+
+  return parent->child_status;
 }
 
 /* Free the current process's resources. */
@@ -379,7 +377,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not. */
   file_deny_write(file);
-  file_close (file);
+  // file_close (file);
   return success;
 }
 
@@ -508,7 +506,6 @@ setup_stack (void **esp, int argc, char* argv[])
         *esp = PHYS_BASE;
         void* addresses[argc];
 
-
         for (int i = argc - 1; i >= 0; i--)
         {
           int size = strlen(argv[i]) + 1;
@@ -521,11 +518,19 @@ setup_stack (void **esp, int argc, char* argv[])
 
         *esp -= 4;
 
+        uint32_t argv0_add;
         for (int i = argc - 1; i >= 0; i--)
         {
           *esp -= 4;
-          memcpy(*esp, addresses[i], 4);
+          memcpy(*esp, &addresses[i], 4);
         }
+        argv0_add = *esp;
+
+        *esp -= 4;
+
+        memcpy(*esp, &argv0_add, 4);
+
+        *esp -= 4;
 
         memcpy(*esp, &argc, 4);
 

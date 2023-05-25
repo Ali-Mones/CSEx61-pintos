@@ -5,6 +5,8 @@
 #define USERPROG
 #endif
 
+#define ERR PANIC("%d", 1);
+
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -111,7 +113,6 @@ struct thread
     struct list open_files;                                                /* fd_to_ptr() from current_thread() */
     struct list child_processes;                                           /* used for child validation and exit */
     struct thread* parent_thread;                                          /* now child thread can pass values to parent */
-    bool child_creation_success;                                           /* set in parent by child during creation */
     int child_status;                                                      /* set in parent by child during wait() */
     tid_t waiting_on;                                                      /* to check that my parent is waiting on me as child is calling exit */
     struct file* executable_file;                                          /* set in load(), call deny_file_write() and close it in exit() */
